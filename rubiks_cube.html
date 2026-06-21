@@ -752,6 +752,8 @@ function closeHint() {
       state: getCubeState(),
       step: currentStep,
       ts: lastPushedTs,
+      viewX: baseRotX,
+      viewY: baseRotY,
       lastMove: lastFace ? { face: lastFace, dir: lastDir, role: currentRole } : null
     });
   }
@@ -780,6 +782,21 @@ function closeHint() {
     });
 
     if (data.step !== undefined) setStep(data.step);
+
+    // 포지션 동기화
+    if (data.viewX !== undefined && data.viewY !== undefined) {
+      const fx = cubeGroup.rotation.x, fy = cubeGroup.rotation.y;
+      baseRotX = data.viewX; baseRotY = data.viewY;
+      const tx = baseRotX, ty = baseRotY, t0 = performance.now();
+      function step(now) {
+        const t = Math.min((now-t0)/350, 1);
+        const e = t<0.5 ? 2*t*t : -1+(4-2*t)*t;
+        cubeGroup.rotation.x = fx+(tx-fx)*e;
+        cubeGroup.rotation.y = fy+(ty-fy)*e;
+        if (t<1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
 
     // 상대방 조작 버튼 플래시
     if (data.lastMove && data.lastMove.role !== currentRole) {
@@ -814,6 +831,12 @@ function closeHint() {
   window.undoMove = function() {
     _undo();
     setTimeout(() => pushState(), 250);
+  };
+
+  const _rv = window.rotateView;
+  window.rotateView = function(dy, dx) {
+    _rv(dy, dx);
+    setTimeout(() => pushState(), 400);
   };
 
   // 권한 동기화
