@@ -405,6 +405,7 @@ window.addEventListener('mousemove', e => {
   lastX=e.clientX; lastY=e.clientY;
   cubeGroup.rotation.x = baseRotX + tempRotX;
   cubeGroup.rotation.y = baseRotY + tempRotY;
+  if (window._pushView) window._pushView(cubeGroup.rotation.x, cubeGroup.rotation.y);
 });
 window.addEventListener('mouseup', () => {
   if (!dragging) return;
@@ -413,7 +414,11 @@ window.addEventListener('mouseup', () => {
   function ret(now) {
     const t=Math.min((now-t0)/250,1), e=1-Math.pow(1-t,3);
     cubeGroup.rotation.x=sx+(baseRotX-sx)*e; cubeGroup.rotation.y=sy+(baseRotY-sy)*e;
-    if(t<1) requestAnimationFrame(ret); else { tempRotX=0; tempRotY=0; }
+    if(t<1) requestAnimationFrame(ret);
+    else {
+      tempRotX=0; tempRotY=0;
+      if (window._pushView) window._pushView(baseRotX, baseRotY);
+    }
   }
   requestAnimationFrame(ret);
 });
@@ -424,6 +429,7 @@ window.addEventListener('touchmove', e=>{
   tempRotY+=(t.clientX-lastX)*0.012; tempRotX+=(t.clientY-lastY)*0.012;
   lastX=t.clientX; lastY=t.clientY;
   cubeGroup.rotation.x=baseRotX+tempRotX; cubeGroup.rotation.y=baseRotY+tempRotY;
+  if (window._pushView) window._pushView(cubeGroup.rotation.x, cubeGroup.rotation.y);
 },{passive:true});
 window.addEventListener('touchend', ()=>{
   if(!dragging) return;
@@ -736,6 +742,16 @@ function closeHint() {
   let isSyncing = false;
   let lastPushedTs = 0;
 
+  // 뷰 각도만 빠르게 push (드래그용)
+  let viewPushTimer = null;
+  function pushView(rx, ry) {
+    if (isSyncing) return;
+    clearTimeout(viewPushTimer);
+    viewPushTimer = setTimeout(() => {
+      set(ref(db, 'cube-session-v3/view'), { rx, ry, ts: Date.now(), role: currentRole });
+    }, 30); // 30ms throttle
+  }
+
   // 큐브 전체 상태 직렬화
   function getCubeState() {
     return cubies.map(c => ({
@@ -838,6 +854,16 @@ function closeHint() {
     _rv(dy, dx);
     setTimeout(() => pushState(), 400);
   };
+
+  // 뷰 각도 실시간 수신
+  window._pushView = pushView;
+  onValue(ref(db, 'cube-session-v3/view'), snapshot => {
+    const data = snapshot.val();
+    if (!data || isSyncing) return;
+    if (data.role === currentRole) return; // 내가 보낸 것 무시
+    cubeGroup.rotation.x = data.rx;
+    cubeGroup.rotation.y = data.ry;
+  });
 
   // 권한 동기화
   const permRef = ref(db, 'permissions/studentCanOperate');
