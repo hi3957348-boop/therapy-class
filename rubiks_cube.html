@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>루빅스 큐브 연습</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0f1923;
+    --panel: #1a2636;
+    --panel2: #223048;
+    --accent: #f5a623;
+    --teacher: #4fc3f7;
+    --student: #81c784;
+    --text: #e8edf2;
+    --muted: #7a90a8;
+    --radius: 14px;
+    --white: #FFFFFF;
+    --yellow: #FFD600;
+    --blue: #1565C0;
+    --red: #D32F2F;
+    --orange: #E65100;
+    --green: #2E7D32;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Nanum Gothic', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    background: var(--panel);
+    border-bottom: 2px solid #263c55;
+  }
+  .logo { font-size: 22px; font-weight: 800; color: var(--accent); letter-spacing: -0.5px; }
+  .role-badge {
+    display: flex;
+    gap: 10px;
+  }
+  .role-btn {
+    padding: 8px 20px;
+    border-radius: 30px;
+    border: 2px solid transparent;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+    background: var(--panel2);
+    color: var(--muted);
+  }
+  .role-btn.active-teacher { border-color: var(--teacher); color: var(--teacher); background: rgba(79,195,247,0.1); }
+  .role-btn.active-student { border-color: var(--student); color: var(--student); background: rgba(129,199,132,0.1); }
+  .step-info { font-size: 15px; color: var(--muted); font-weight: 700; }
+
+  /* ── 메인 레이아웃 ── */
+  .main {
+    display: flex;
+    flex: 1;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  /* ── 왼쪽: 큐브 영역 ── */
+  .cube-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 80px 24px 24px;
+    gap: 14px;
+    position: relative;
+    overflow-y: auto;
+  }
+
+  /* 3D 큐브 */
+  .scene {
+    width: 230px;
+    height: 230px;
+    perspective: 700px;
+    cursor: grab;
+    flex-shrink: 0;
+    margin-bottom: 90px;
+  }
+  .scene:active { cursor: grabbing; }
+
+  .cube-3d {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transform: rotateX(-25deg) rotateY(35deg);
+    transition: transform 0.15s;
+  }
+
+  /* 각 면(face) */
+  .face {
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 4px;
+    padding: 4px;
+    backface-visibility: visible;
+  }
+  .face.front  { transform: translateZ(130px); }
+  .face.back   { transform: rotateY(180deg) translateZ(130px); }
+  .face.right  { transform: rotateY(90deg) translateZ(130px); }
+  .face.left   { transform: rotateY(-90deg) translateZ(130px); }
+  .face.top    { transform: rotateX(90deg) translateZ(130px); }
+  .face.bottom { transform: rotateX(-90deg) translateZ(130px); }
+
+  .cubie {
+    border-radius: 6px;
+    border: 3px solid rgba(0,0,0,0.35);
+    transition: all 0.3s;
+    cursor: pointer;
+    position: relative;
+  }
+  .cubie:hover { filter: brightness(1.2); transform: scale(0.93); }
+  .cubie.hint-highlight {
+    box-shadow: 0 0 0 4px #fff, 0 0 0 7px var(--accent);
+    animation: pulse 0.8s infinite alternate;
+  }
+  @keyframes pulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+
+  /* 색상 */
+  .c-white  { background: #f5f5f5; }
+  .c-yellow { background: #FFD600; }
+  .c-blue   { background: #1565C0; }
+  .c-red    { background: #E53935; }
+  .c-orange { background: #FB8C00; }
+  .c-green  { background: #43A047; }
+
+  /* ── 회전 컨트롤 ── */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 340px;
+  }
+  .ctrl-label {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 700;
+    text-align: center;
+  }
+  .ctrl-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+  }
+  .ctrl-btn {
+    padding: 10px 6px;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    background: var(--panel2);
+    color: var(--text);
+  }
+  .ctrl-btn:hover { background: var(--accent); color: #000; transform: scale(1.05); }
+  .ctrl-btn:disabled { opacity: 0.3; pointer-events: none; }
+  .ctrl-btn.teacher-only { border: 2px solid var(--teacher); }
+  .ctrl-btn.student-only { border: 2px solid var(--student); }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .act-btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .act-btn:hover { transform: scale(1.04); }
+  .btn-scramble { background: #ff7043; color: #fff; }
+  .btn-reset    { background: var(--panel2); color: var(--text); border: 2px solid #4a6278; }
+  .btn-undo     { background: var(--panel2); color: var(--accent); border: 2px solid var(--accent); }
+  .btn-hint-show { background: var(--accent); color: #000; }
+
+  /* ── 오른쪽 패널 ── */
+  .side-panel {
+    width: 280px;
+    background: var(--panel);
+    border-left: 2px solid #263c55;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .panel-section {
+    padding: 18px 20px;
+    border-bottom: 1px solid #263c55;
+  }
+  .panel-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* 단계 가이드 */
+  .step-list { display: flex; flex-direction: column; gap: 8px; }
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--panel2);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .step-item.active { border-color: var(--accent); background: rgba(245,166,35,0.08); }
+  .step-item.done { border-color: var(--student); opacity: 0.7; }
+  .step-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--panel);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .step-item.active .step-num { background: var(--accent); color: #000; }
+  .step-item.done .step-num { background: var(--student); color: #000; }
+  .step-text { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.4; }
+  .step-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* 메시지 박스 */
+  .msg-box {
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.6;
+  }
+  .msg-teacher { background: rgba(79,195,247,0.1); border: 2px solid var(--teacher); color: var(--teacher); }
+  .msg-student { background: rgba(129,199,132,0.1); border: 2px solid var(--student); color: var(--student); }
+  .msg-info    { background: rgba(245,166,35,0.1);  border: 2px solid var(--accent);  color: var(--accent); }
+
+  /* 이동 기록 */
+  .move-log {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+  .move-tag {
+    background: var(--panel2);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .move-tag.teacher-move { color: var(--teacher); border: 1px solid var(--teacher); }
+  .move-tag.student-move { color: var(--student); border: 1px solid var(--student); }
+
+  /* 완성 오버레이 */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .overlay.show { display: flex; }
+  .overlay-box {
+    background: var(--panel);
+    border: 3px solid var(--accent);
+    border-radius: 20px;
+    padding: 40px 50px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .overlay-emoji { font-size: 64px; }
+  .overlay-title { font-size: 32px; font-weight: 800; color: var(--accent); }
+  .overlay-sub { font-size: 18px; color: var(--muted); }
+  .overlay-btn {
+    padding: 12px 32px;
+    border-radius: 30px;
+    border: none;
+    background: var(--accent);
+    color: #000;
+    font-size: 18px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    margin-top: 8px;
+  }
+
+  /* 뷰 회전 버튼 */
+  .view-controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .view-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 2px solid #4a6278;
+    background: transparent;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .view-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* 역할 잠금 안내 */
+  .lock-notice {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding: 6px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<header>
+  <div class="logo">🧩 루빅스 큐브 연습</div>
+  <div class="role-badge">
+    <button class="role-btn active-teacher" id="btn-teacher" onclick="setRole('teacher')">👩‍🏫 강사</button>
+    <button class="role-btn" id="btn-student" onclick="setRole('student')">🧒 학생</button>
+  </div>
+  <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+    <div class="step-info" id="step-info">1단계 진행 중</div>
+    <div id="sync-status" style="font-size:13px; color:var(--muted); font-weight:700;">🔴 연결 중...</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- 큐브 영역 -->
+  <div class="cube-area">
+    <div class="scene" id="scene"
+      onmousedown="startDrag(event)"
+      ontouchstart="startDragTouch(event)">
+      <div class="cube-3d" id="cube3d">
+        <div class="face front"  id="face-front"></div>
+        <div class="face back"   id="face-back"></div>
+        <div class="face right"  id="face-right"></div>
+        <div class="face left"   id="face-left"></div>
+        <div class="face top"    id="face-top"></div>
+        <div class="face bottom" id="face-bottom"></div>
+      </div>
+    </div>
+
+    <!-- 뷰 회전 -->
+    <div class="view-controls">
+      <button class="view-btn" onclick="rotateView(-15,0)">◀ 좌회전</button>
+      <button class="view-btn" onclick="rotateView(15,0)">우회전 ▶</button>
+      <button class="view-btn" onclick="rotateView(0,-15)">▲ 위</button>
+      <button class="view-btn" onclick="rotateView(0,15)">▼ 아래</button>
+    </div>
+
+    <!-- 면 회전 버튼 -->
+    <div class="controls">
+      <div class="ctrl-label">면 돌리기 (시계 방향 / 반시계 방향)</div>
+      <div class="ctrl-grid" id="ctrl-grid">
+        <button class="ctrl-btn" onclick="rotateFace('U',1)" title="윗면 시계">U ↻</button>
+        <button class="ctrl-btn" onclick="rotateFace('F',1)" title="앞면 시계">F ↻</button>
+        <button class="ctrl-btn" onclick="rotateFace('R',1)" title="오른면 시계">R ↻</button>
+        <button class="ctrl-btn" onclick="rotateFace('U',-1)" title="윗면 반시계">U ↺</button>
+        <button class="ctrl-btn" onclick="rotateFace('F',-1)" title="앞면 반시계">F ↺</button>
+        <button class="ctrl-btn" onclick="rotateFace('R',-1)" title="오른면 반시계">R ↺</button>
+        <button class="ctrl-btn" onclick="rotateFace('D',1)">D ↻</button>
+        <button class="ctrl-btn" onclick="rotateFace('B',1)">B ↻</button>
+        <button class="ctrl-btn" onclick="rotateFace('L',1)">L ↻</button>
+        <button class="ctrl-btn" onclick="rotateFace('D',-1)">D ↺</button>
+        <button class="ctrl-btn" onclick="rotateFace('B',-1)">B ↺</button>
+        <button class="ctrl-btn" onclick="rotateFace('L',-1)">L ↺</button>
+      </div>
+      <div class="lock-notice" id="lock-notice"></div>
+      <div class="action-row">
+        <button class="act-btn btn-scramble" onclick="scrambleCube()">🔀 섞기</button>
+        <button class="act-btn btn-undo" onclick="undoMove()">↩ 되돌리기</button>
+        <button class="act-btn btn-hint-show" onclick="toggleHint()">💡 힌트</button>
+        <button class="act-btn btn-reset" onclick="resetCube()">🔄 초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사이드 패널 -->
+  <div class="side-panel">
+
+    <!-- 현재 안내 -->
+    <div class="panel-section">
+      <div class="panel-title">현재 안내</div>
+      <div class="msg-box msg-teacher" id="current-msg">
+        🎯 강사가 큐브를 섞어서 문제를 만들어 주세요!
+      </div>
+    </div>
+
+    <!-- 단계 목록 -->
+    <div class="panel-section">
+      <div class="panel-title">단계 가이드</div>
+      <div class="step-list">
+        <div class="step-item active" id="step-0" onclick="gotoStep(0)">
+          <div class="step-num">1</div>
+          <div>
+            <div class="step-text">흰색 십자 만들기</div>
+            <div class="step-sub">윗면에 + 모양</div>
+          </div>
+        </div>
+        <div class="step-item" id="step-1" onclick="gotoStep(1)">
+          <div class="step-num">2</div>
+          <div>
+            <div class="step-text">흰색 면 완성</div>
+            <div class="step-sub">윗면 9칸 모두 흰색</div>
+          </div>
+        </div>
+        <div class="step-item" id="step-2" onclick="gotoStep(2)">
+          <div class="step-num">3</div>
+          <div>
+            <div class="step-text">중간 줄 맞추기</div>
+            <div class="step-sub">가운데 층 4면</div>
+          </div>
+        </div>
+        <div class="step-item" id="step-3" onclick="gotoStep(3)">
+          <div class="step-num">4</div>
+          <div>
+            <div class="step-text">노란색 십자</div>
+            <div class="step-sub">아랫면에 + 모양</div>
+          </div>
+        </div>
+        <div class="step-item" id="step-4" onclick="gotoStep(4)">
+          <div class="step-num">5</div>
+          <div>
+            <div class="step-text">완성! 🎉</div>
+            <div class="step-sub">모든 면 맞추기</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 이동 기록 -->
+    <div class="panel-section">
+      <div class="panel-title">이동 기록</div>
+      <div class="move-log" id="move-log">
+        <span style="color:var(--muted); font-size:13px;">아직 이동 없음</span>
+      </div>
+    </div>
+
+    <!-- 면 색상 안내 -->
+    <div class="panel-section">
+      <div class="panel-title">면 색상 안내</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#f5f5f5;border:1px solid #555;"></div> 앞면 (F) — 흰색
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#FFD600;"></div> 윗면 (U) — 노란색
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#E53935;"></div> 오른면 (R) — 빨간색
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#FB8C00;"></div> 왼면 (L) — 주황색
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#1565C0;"></div> 뒷면 (B) — 파란색
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;">
+          <div style="width:20px;height:20px;border-radius:4px;background:#43A047;"></div> 아랫면 (D) — 초록색
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 완성 오버레이 -->
+<div class="overlay" id="overlay">
+  <div class="overlay-box">
+    <div class="overlay-emoji">🎉</div>
+    <div class="overlay-title">완성!</div>
+    <div class="overlay-sub">정말 잘했어요!<br>선생님과 함께 해냈어요!</div>
+    <button class="overlay-btn" onclick="resetCube(); closeOverlay()">다시 도전하기</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  큐브 상태 (각 면 9칸 색상)
+//  faces: U(위), D(아래), F(앞), B(뒤), R(오른), L(왼)
+//  solved 상태의 색:
+//  U=yellow, D=green, F=white, B=blue, R=red, L=orange
+// ══════════════════════════════════════════
+
+const COLORS = { U:'c-yellow', D:'c-green', F:'c-white', B:'c-blue', R:'c-red', L:'c-orange' };
+
+let state = {};
+let history = [];
+let currentRole = 'teacher';
+let currentStep = 0;
+let hintOn = false;
+
+// 초기 상태 생성
+function initState() {
+  state = {};
+  for (const f in COLORS) {
+    state[f] = Array(9).fill(COLORS[f]);
+  }
+  history = [];
+}
+
+// ── 렌더링 ──
+const faceMap = { F:'front', B:'back', R:'right', L:'left', U:'top', D:'bottom' };
+
+function render() {
+  for (const f in faceMap) {
+    const el = document.getElementById('face-' + faceMap[f]);
+    el.innerHTML = '';
+    state[f].forEach((col, i) => {
+      const div = document.createElement('div');
+      div.className = 'cubie ' + col;
+      el.appendChild(div);
+    });
+  }
+  checkSolved();
+}
+
+// ── 면 회전 로직 ──
+// 각 면의 인덱스 배치:
+// 0 1 2
+// 3 4 5
+// 6 7 8
+
+function rotateArr(arr, dir) {
+  // dir=1: 시계, dir=-1: 반시계
+  if (dir === 1) return [arr[6],arr[3],arr[0], arr[7],arr[4],arr[1], arr[8],arr[5],arr[2]];
+  else           return [arr[2],arr[5],arr[8], arr[1],arr[4],arr[7], arr[0],arr[3],arr[6]];
+}
+
+function rotateFace(face, dir) {
+  if (!canOperate()) return;
+
+  const s = JSON.parse(JSON.stringify(state));
+  history.push(JSON.parse(JSON.stringify(state)));
+  if (history.length > 50) history.shift();
+
+  // 자신 면 회전
+  state[face] = rotateArr(s[face], dir);
+
+  // 인접 면 처리
+  if (face === 'U') {
+    if (dir === 1) {
+      const tmp = [s.F[0],s.F[1],s.F[2]];
+      state.F[0]=s.R[0]; state.F[1]=s.R[1]; state.F[2]=s.R[2];
+      state.R[0]=s.B[0]; state.R[1]=s.B[1]; state.R[2]=s.B[2];
+      state.B[0]=s.L[0]; state.B[1]=s.L[1]; state.B[2]=s.L[2];
+      state.L[0]=tmp[0]; state.L[1]=tmp[1]; state.L[2]=tmp[2];
+    } else {
+      const tmp = [s.F[0],s.F[1],s.F[2]];
+      state.F[0]=s.L[0]; state.F[1]=s.L[1]; state.F[2]=s.L[2];
+      state.L[0]=s.B[0]; state.L[1]=s.B[1]; state.L[2]=s.B[2];
+      state.B[0]=s.R[0]; state.B[1]=s.R[1]; state.B[2]=s.R[2];
+      state.R[0]=tmp[0]; state.R[1]=tmp[1]; state.R[2]=tmp[2];
+    }
+  } else if (face === 'D') {
+    if (dir === 1) {
+      const tmp = [s.F[6],s.F[7],s.F[8]];
+      state.F[6]=s.L[6]; state.F[7]=s.L[7]; state.F[8]=s.L[8];
+      state.L[6]=s.B[6]; state.L[7]=s.B[7]; state.L[8]=s.B[8];
+      state.B[6]=s.R[6]; state.B[7]=s.R[7]; state.B[8]=s.R[8];
+      state.R[6]=tmp[0]; state.R[7]=tmp[1]; state.R[8]=tmp[2];
+    } else {
+      const tmp = [s.F[6],s.F[7],s.F[8]];
+      state.F[6]=s.R[6]; state.F[7]=s.R[7]; state.F[8]=s.R[8];
+      state.R[6]=s.B[6]; state.R[7]=s.B[7]; state.R[8]=s.B[8];
+      state.B[6]=s.L[6]; state.B[7]=s.L[7]; state.B[8]=s.L[8];
+      state.L[6]=tmp[0]; state.L[7]=tmp[1]; state.L[8]=tmp[2];
+    }
+  } else if (face === 'F') {
+    if (dir === 1) {
+      const tmp = [s.U[6],s.U[7],s.U[8]];
+      state.U[6]=s.L[8]; state.U[7]=s.L[5]; state.U[8]=s.L[2];
+      state.L[2]=s.D[0]; state.L[5]=s.D[1]; state.L[8]=s.D[2];
+      state.D[0]=s.R[6]; state.D[1]=s.R[3]; state.D[2]=s.R[0];
+      state.R[0]=tmp[0]; state.R[3]=tmp[1]; state.R[6]=tmp[2];
+    } else {
+      const tmp = [s.U[6],s.U[7],s.U[8]];
+      state.U[6]=s.R[0]; state.U[7]=s.R[3]; state.U[8]=s.R[6];
+      state.R[0]=s.D[2]; state.R[3]=s.D[1]; state.R[6]=s.D[0];
+      state.D[0]=s.L[2]; state.D[1]=s.L[5]; state.D[2]=s.L[8];
+      state.L[2]=tmp[2]; state.L[5]=tmp[1]; state.L[8]=tmp[0];
+    }
+  } else if (face === 'B') {
+    if (dir === 1) {
+      const tmp = [s.U[0],s.U[1],s.U[2]];
+      state.U[0]=s.R[2]; state.U[1]=s.R[5]; state.U[2]=s.R[8];
+      state.R[2]=s.D[8]; state.R[5]=s.D[7]; state.R[8]=s.D[6];
+      state.D[6]=s.L[0]; state.D[7]=s.L[3]; state.D[8]=s.L[6];
+      state.L[0]=tmp[2]; state.L[3]=tmp[1]; state.L[6]=tmp[0];
+    } else {
+      const tmp = [s.U[0],s.U[1],s.U[2]];
+      state.U[0]=s.L[6]; state.U[1]=s.L[3]; state.U[2]=s.L[0];
+      state.L[0]=s.D[8]; state.L[3]=s.D[7]; state.L[6]=s.D[6];
+      state.D[6]=s.R[8]; state.D[7]=s.R[5]; state.D[8]=s.R[2];
+      state.R[2]=tmp[0]; state.R[5]=tmp[1]; state.R[8]=tmp[2];
+    }
+  } else if (face === 'R') {
+    if (dir === 1) {
+      const tmp = [s.U[2],s.U[5],s.U[8]];
+      state.U[2]=s.F[2]; state.U[5]=s.F[5]; state.U[8]=s.F[8];
+      state.F[2]=s.D[2]; state.F[5]=s.D[5]; state.F[8]=s.D[8];
+      state.D[2]=s.B[6]; state.D[5]=s.B[3]; state.D[8]=s.B[0];
+      state.B[0]=tmp[2]; state.B[3]=tmp[1]; state.B[6]=tmp[0];
+    } else {
+      const tmp = [s.U[2],s.U[5],s.U[8]];
+      state.U[2]=s.B[6]; state.U[5]=s.B[3]; state.U[8]=s.B[0];
+      state.B[0]=s.D[8]; state.B[3]=s.D[5]; state.B[6]=s.D[2];
+      state.D[2]=s.F[2]; state.D[5]=s.F[5]; state.D[8]=s.F[8];
+      state.F[2]=tmp[0]; state.F[5]=tmp[1]; state.F[8]=tmp[2];
+    }
+  } else if (face === 'L') {
+    if (dir === 1) {
+      const tmp = [s.U[0],s.U[3],s.U[6]];
+      state.U[0]=s.B[8]; state.U[3]=s.B[5]; state.U[6]=s.B[2];
+      state.B[2]=s.D[6]; state.B[5]=s.D[3]; state.B[8]=s.D[0];
+      state.D[0]=s.F[0]; state.D[3]=s.F[3]; state.D[6]=s.F[6];
+      state.F[0]=tmp[0]; state.F[3]=tmp[1]; state.F[6]=tmp[2];
+    } else {
+      const tmp = [s.U[0],s.U[3],s.U[6]];
+      state.U[0]=s.F[0]; state.U[3]=s.F[3]; state.U[6]=s.F[6];
+      state.F[0]=s.D[0]; state.F[3]=s.D[3]; state.F[6]=s.D[6];
+      state.D[0]=s.B[8]; state.D[3]=s.B[5]; state.D[6]=s.B[2];
+      state.B[2]=tmp[2]; state.B[5]=tmp[1]; state.B[8]=tmp[0];
+    }
+  }
+
+  logMove(face, dir);
+  render();
+}
+
+// ── 이동 기록 ──
+function logMove(face, dir) {
+  const log = document.getElementById('move-log');
+  if (log.querySelector('span')) log.innerHTML = '';
+  const tag = document.createElement('div');
+  tag.className = 'move-tag ' + (currentRole === 'teacher' ? 'teacher-move' : 'student-move');
+  tag.textContent = face + (dir === 1 ? '' : "'");
+  log.appendChild(tag);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ── 섞기 ──
+function scrambleCube() {
+  if (currentRole !== 'teacher') {
+    alert('강사만 섞기를 할 수 있어요!');
+    return;
+  }
+  initState();
+  const faces = ['U','D','F','B','R','L'];
+  const dirs = [1,-1];
+  for (let i = 0; i < 15; i++) {
+    const f = faces[Math.floor(Math.random()*6)];
+    const d = dirs[Math.floor(Math.random()*2)];
+    // 직접 state 조작 없이 rotateFace 로직 재사용 (로그 없이)
+    const prevRole = currentRole;
+    currentRole = 'teacher';
+    rotateFace(f, d);
+    currentRole = prevRole;
+  }
+  isScrambled = true;
+  document.getElementById('move-log').innerHTML = '<span style="color:var(--muted);font-size:13px;">섞기 완료!</span>';
+  setStep(0);
+  updateMsg('학생에게 큐브를 넘겨주세요! 단계별로 같이 맞춰봐요.', 'teacher');
+}
+
+// ── 되돌리기 ──
+function undoMove() {
+  if (history.length === 0) return;
+  state = history.pop();
+  render();
+}
+
+// ── 초기화 ──
+function resetCube() {
+  isScrambled = false;
+  initState();
+  render();
+  document.getElementById('move-log').innerHTML = '<span style="color:var(--muted);font-size:13px;">아직 이동 없음</span>';
+  setStep(0);
+  updateMsg('🎯 강사가 큐브를 섞어서 문제를 만들어 주세요!', 'teacher');
+}
+
+// ── 완성 체크 ──
+function checkSolved() {
+  if (!isScrambled) return; // 섞기 후에만 체크
+  for (const f in state) {
+    const first = state[f][0];
+    if (!state[f].every(c => c === first)) return;
+  }
+  isScrambled = false;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── 역할 ──
+function setRole(role) {
+  currentRole = role;
+  document.getElementById('btn-teacher').className = 'role-btn' + (role==='teacher' ? ' active-teacher' : '');
+  document.getElementById('btn-student').className = 'role-btn' + (role==='student' ? ' active-student' : '');
+
+  const notice = document.getElementById('lock-notice');
+  if (role === 'student') {
+    notice.textContent = '학생 모드: 섞기는 강사만 할 수 있어요';
+    notice.style.color = 'var(--student)';
+    updateMsg('선생님이 만든 큐브를 맞춰봐요! 모르면 💡 힌트를 눌러요.', 'student');
+  } else {
+    notice.textContent = '강사 모드: 모든 기능 사용 가능';
+    notice.style.color = 'var(--teacher)';
+    updateMsg('강사 모드예요. 섞기로 문제를 만들거나 학생과 함께 풀어봐요.', 'teacher');
+  }
+}
+
+function canOperate() {
+  return true; // 버튼 조작은 모두 가능, 섞기만 강사 전용
+}
+
+// ── 단계 ──
+const stepMsgs = [
+  { t: '💡 윗면(U)에 노란색 십자(+)를 만들어요.\nU, F, R 버튼을 써봐요!', role: 'info' },
+  { t: '✨ 윗면 9칸을 모두 노란색으로 만들어봐요!', role: 'info' },
+  { t: '🔄 가운데 줄 4면을 맞춰요.\nR, L, F, B를 활용해요!', role: 'info' },
+  { t: '⭐ 아랫면(D)에 초록색 십자를 만들어봐요!', role: 'info' },
+  { t: '🎉 마지막! 모든 면을 완성해봐요!', role: 'info' },
+];
+
+function gotoStep(n) {
+  setStep(n);
+  updateMsg(stepMsgs[n].t, stepMsgs[n].role);
+}
+function setStep(n) {
+  currentStep = n;
+  document.getElementById('step-info').textContent = (n+1) + '단계 진행 중';
+  for (let i = 0; i < 5; i++) {
+    const el = document.getElementById('step-' + i);
+    el.className = 'step-item' + (i === n ? ' active' : i < n ? ' done' : '');
+  }
+}
+function updateMsg(msg, role) {
+  const el = document.getElementById('current-msg');
+  el.textContent = msg;
+  el.className = 'msg-box msg-' + role;
+}
+
+// ── 힌트 ──
+function toggleHint() {
+  hintOn = !hintOn;
+  render();
+  if (hintOn) updateMsg('💡 힌트 ON! 지금 단계에서 움직여야 할 칸을 표시했어요.', 'info');
+}
+
+// ── 뷰 드래그 ──
+let viewX = -25, viewY = 35;
+let isScrambled = false; // 섞기 후에만 완성 축하 표시
+let dragging = false, lastX, lastY;
+
+function rotateView(dy, dx) {
+  viewY += dy;
+  viewX += dx;
+  applyView();
+}
+function applyView() {
+  document.getElementById('cube3d').style.transform =
+    `rotateX(${viewX}deg) rotateY(${viewY}deg)`;
+}
+function startDrag(e) {
+  dragging = true;
+  lastX = e.clientX; lastY = e.clientY;
+  window.addEventListener('mousemove', onDrag);
+  window.addEventListener('mouseup', stopDrag);
+}
+function onDrag(e) {
+  if (!dragging) return;
+  viewY += (e.clientX - lastX) * 0.5;
+  viewX -= (e.clientY - lastY) * 0.5;
+  lastX = e.clientX; lastY = e.clientY;
+  applyView();
+}
+function stopDrag() {
+  dragging = false;
+  window.removeEventListener('mousemove', onDrag);
+  window.removeEventListener('mouseup', stopDrag);
+}
+function startDragTouch(e) {
+  const t = e.touches[0];
+  lastX = t.clientX; lastY = t.clientY;
+  window.addEventListener('touchmove', onDragTouch, {passive:true});
+  window.addEventListener('touchend', stopDragTouch);
+}
+function onDragTouch(e) {
+  const t = e.touches[0];
+  viewY += (t.clientX - lastX) * 0.5;
+  viewX -= (t.clientY - lastY) * 0.5;
+  lastX = t.clientX; lastY = t.clientY;
+  applyView();
+}
+function stopDragTouch() {
+  window.removeEventListener('touchmove', onDragTouch);
+  window.removeEventListener('touchend', stopDragTouch);
+}
+
+// ── 초기 실행 ──
+initState();
+render();
+setRole('teacher');
+</script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD6luoE1TUQe-zGWl_bM6ujCFGAL-MtK6o",
+    authDomain: "rubiks-e829c.firebaseapp.com",
+    databaseURL: "https://rubiks-e829c-default-rtdb.firebaseio.com",
+    projectId: "rubiks-e829c",
+    storageBucket: "rubiks-e829c.firebasestorage.app",
+    messagingSenderId: "372364043548",
+    appId: "1:372364043548:web:92bcea1f0c1f44dd1346d9",
+    measurementId: "G-TKRGDT5T1G"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const cubeRef = ref(db, 'cube-session');
+
+  let isSyncing = false; // 무한루프 방지
+
+  // ── Firebase에 상태 저장 ──
+  function pushState() {
+    if (isSyncing) return;
+    set(cubeRef, {
+      state: state,
+      step: currentStep,
+      role: currentRole,
+      viewX: viewX,
+      viewY: viewY,
+      ts: Date.now()
+    });
+  }
+
+  // ── Firebase에서 상태 받기 ──
+  onValue(cubeRef, (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    isSyncing = true;
+
+    // 큐브 상태 동기화
+    if (data.state) {
+      state = data.state;
+      render();
+    }
+    // 단계 동기화
+    if (data.step !== undefined) setStep(data.step);
+    // 뷰 각도 동기화
+    if (data.viewX !== undefined) {
+      viewX = data.viewX;
+      viewY = data.viewY;
+      applyView();
+    }
+
+    isSyncing = false;
+
+    // 연결 상태 표시
+    document.getElementById('sync-status').textContent = '🟢 연결됨';
+    document.getElementById('sync-status').style.color = 'var(--student)';
+  });
+
+  // 기존 함수들을 Firebase 연동 버전으로 오버라이드
+  const _rotateFace = rotateFace;
+  window.rotateFace = function(face, dir) {
+    _rotateFace(face, dir);
+    pushState();
+  };
+
+  const _scrambleCube = scrambleCube;
+  window.scrambleCube = function() {
+    _scrambleCube();
+    pushState();
+  };
+
+  const _resetCube = resetCube;
+  window.resetCube = function() {
+    _resetCube();
+    pushState();
+  };
+
+  const _undoMove = undoMove;
+  window.undoMove = function() {
+    _undoMove();
+    pushState();
+  };
+
+  const _gotoStep = gotoStep;
+  window.gotoStep = function(n) {
+    _gotoStep(n);
+    pushState();
+  };
+
+  const _rotateView = rotateView;
+  window.rotateView = function(dy, dx) {
+    _rotateView(dy, dx);
+    pushState();
+  };
+
+  // 초기 상태 push
+  pushState();
+</script>
+</body>
+</html>
