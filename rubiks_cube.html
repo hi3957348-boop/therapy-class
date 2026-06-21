@@ -719,6 +719,7 @@ function closeHint() {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
   const firebaseConfig = {
     apiKey:"AIzaSyD6luoE1TUQe-zGWl_bM6ujCFGAL-MtK6o",
     authDomain:"rubiks-e829c.firebaseapp.com",
@@ -728,62 +729,96 @@ function closeHint() {
     messagingSenderId:"372364043548",
     appId:"1:372364043548:web:92bcea1f0c1f44dd1346d9",
   };
+
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  const cubeRef = ref(db,'cube-session-v2');
+  const cubeRef = ref(db, 'cube-session-v3'); // 새 세션키
   let isSyncing = false;
+  let lastPushedTs = 0;
 
+  // 큐브 전체 상태 직렬화
   function getCubeState() {
-    return cubies.map(c=>({pos:c.pos,colors:c.mesh.material.map(m=>m.color.getHex())}));
+    return cubies.map(c => ({
+      x: c.pos.x, y: c.pos.y, z: c.pos.z,
+      cols: c.mesh.material.map(m => m.color.getHex())
+    }));
   }
+
+  // Firebase에 상태 push
   function pushState(lastFace, lastDir) {
-    if(isSyncing) return;
-    set(cubeRef,{
-      cubeState: getCubeState(),
+    if (isSyncing) return;
+    lastPushedTs = Date.now();
+    set(cubeRef, {
+      state: getCubeState(),
       step: currentStep,
-      ts: Date.now(),
+      ts: lastPushedTs,
       lastMove: lastFace ? { face: lastFace, dir: lastDir, role: currentRole } : null
     });
   }
-  onValue(cubeRef, snapshot=>{
-    if(isSyncing) return;
-    const data=snapshot.val();
-    if(!data||!data.cubeState) return;
-    isSyncing=true;
-    cubies.forEach(c=>cubeGroup.remove(c.mesh));
-    cubies=[];
-    data.cubeState.forEach(item=>{
-      const {pos,colors}=item;
-      const geo=makeBeveledBox(CUBIE_SIZE,0.07);
-      const mats=colors.map(hex=>new THREE.MeshPhongMaterial({color:hex,shininess:60,side:THREE.DoubleSide}));
-      const mesh=new THREE.Mesh(geo,mats);
-      mesh.position.set(pos.x*GAP,pos.y*GAP,pos.z*GAP);
+
+  // Firebase에서 상태 수신 → 큐브 재구성
+  onValue(cubeRef, snapshot => {
+    const data = snapshot.val();
+    if (!data || !data.state) return;
+    // 내가 방금 push한 것은 무시
+    if (data.ts === lastPushedTs) return;
+
+    isSyncing = true;
+
+    // 큐비 전체 재구성
+    cubies.forEach(c => cubeGroup.remove(c.mesh));
+    cubies = [];
+    data.state.forEach(item => {
+      const geo = makeBeveledBox(CUBIE_SIZE, 0.07);
+      const mats = item.cols.map(hex =>
+        new THREE.MeshPhongMaterial({ color: hex, shininess: 60, side: THREE.DoubleSide })
+      );
+      const mesh = new THREE.Mesh(geo, mats);
+      mesh.position.set(item.x * GAP, item.y * GAP, item.z * GAP);
       cubeGroup.add(mesh);
-      cubies.push({mesh,pos:{x:pos.x,y:pos.y,z:pos.z}});
+      cubies.push({ mesh, pos: { x: item.x, y: item.y, z: item.z } });
     });
-    if(data.step!==undefined) setStep(data.step);
-    // 상대방 조작 플래시
-    if(data.lastMove && data.lastMove.role !== currentRole) {
-      const {face, dir, role} = data.lastMove;
-      flashButton(face, dir, role);
+
+    if (data.step !== undefined) setStep(data.step);
+
+    // 상대방 조작 버튼 플래시
+    if (data.lastMove && data.lastMove.role !== currentRole) {
+      flashButton(data.lastMove.face, data.lastMove.dir, data.lastMove.role);
     }
-    isSyncing=false;
-    document.getElementById('sync-status').textContent='🟢 연결됨';
-    document.getElementById('sync-status').style.color='var(--student)';
+
+    isSyncing = false;
+    document.getElementById('sync-status').textContent = '🟢 연결됨';
+    document.getElementById('sync-status').style.color = 'var(--student)';
   });
 
-  const _rf=window.rotateFace;
-  window.rotateFace=function(face,dir){_rf(face,dir);setTimeout(()=>pushState(face,dir),280);};
-  const _sc=window.scrambleCube;
-  window.scrambleCube=function(){_sc();setTimeout(pushState,4500);};
-  const _re=window.resetCube;
-  window.resetCube=function(){_re();setTimeout(pushState,100);};
+  // 함수 오버라이드
+  const _rf = window.rotateFace;
+  window.rotateFace = function(face, dir) {
+    _rf(face, dir);
+    setTimeout(() => pushState(face, dir), 250);
+  };
+
+  const _sc = window.scrambleCube;
+  window.scrambleCube = function() {
+    _sc();
+    setTimeout(() => pushState(), 4500);
+  };
+
+  const _re = window.resetCube;
+  window.resetCube = function() {
+    _re();
+    setTimeout(() => pushState(), 100);
+  };
+
+  const _undo = window.undoMove;
+  window.undoMove = function() {
+    _undo();
+    setTimeout(() => pushState(), 250);
+  };
 
   // 권한 동기화
   const permRef = ref(db, 'permissions/studentCanOperate');
-  window._pushPermission = function(val) {
-    set(permRef, val);
-  };
+  window._pushPermission = function(val) { set(permRef, val); };
   onValue(permRef, snapshot => {
     const val = snapshot.val();
     if (val === null) return;
@@ -793,7 +828,8 @@ function closeHint() {
     document.getElementById('sync-status').style.color = 'var(--student)';
   });
 
-  pushState();
+  // 초기 상태 push
+  setTimeout(() => pushState(), 500);
 </script>
 </body>
 </html>
